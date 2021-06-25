@@ -3,12 +3,12 @@ import configparser
 import numpy as np
 
 # For coordinate transformations
-from transformations import vec3, vec4, transform, rot_x, rot_z
+from obstruction.transformations import vec3, vec4, transform, rot_x, rot_z
 from pytransform3d import transformations as pt
 
 # CONSTANTS
 config = configparser.ConfigParser()
-config.read('config.ini')
+config.read('resources/config.ini')
 
 # Telescope:
 L_1 = config['mount'].getfloat('length_1') # distance floor-HA axis

@@ -1,6 +1,6 @@
 import argparse
 
-from aperture import TelescopeAperture, GuiderAperture, FinderAperture
+from obstruction.aperture import TelescopeAperture, GuiderAperture, FinderAperture
 
 parser = argparse.ArgumentParser(
             allow_abbrev=True, 
@@ -32,6 +32,6 @@ if __name__ == '__main__':
         blockage = finder.obstruction(args.ha, args.dec, args.az)
 
     if blockage is not None:
-        print('obstruction = {:.2%}'.format(blockage))
+        print('Obstruction = {:.2%}'.format(blockage))
     else:
-        print('the % obstruction could not be computed..!')
+        print('The % obstruction could not be computed!')

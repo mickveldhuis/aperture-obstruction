@@ -1,4 +1,4 @@
-# Dome Interference
+# Dome Interference Calculator
 
 ## About
 
