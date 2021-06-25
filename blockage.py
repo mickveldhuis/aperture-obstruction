@@ -1,18 +1,18 @@
 import argparse
 
-from src.aperture import TelescopeAperture, GuiderAperture, FinderAperture
+from aperture import TelescopeAperture, GuiderAperture, FinderAperture
 
 parser = argparse.ArgumentParser(
             allow_abbrev=True, 
             description='Compute the % obstruction of the main aperture/finder/guider by the dome'
         )
 
-# Add arguments
 parser.add_argument('--az', action='store', type=float, default=0.0, help='dome azimuth: 0 to 360 deg | default: 0 deg')
 parser.add_argument('--ha', action='store', type=float, default=0.0, help='telescope hour angle: -180 to 180 deg | default: 0 deg')
 parser.add_argument('--dec', action='store', type=float, default=0.0, help='telescope declination -90 to 90 deg | default: 0 deg')
 parser.add_argument('-a', '--aperture', action='store', type=str, default='telescope', help='select aperture: telescope, finder, guider | default: telescope')
 parser.add_argument('-r', '--rate', action='store', type=int, default=100, help='no. rays (for decent results >100; preferably 1000+) | default: 100')
+# TODO: add visualisation option!
 
 args = parser.parse_args()
 
