@@ -2,7 +2,7 @@
 
 ## About
 
-Compute the percentage obstruction of the aperture of a telescope aperture, on an equatorial mount, by a hemispherical dome using basic ray tracing techniques. Particularly designed for the [Gratama telescope](https://www.rug.nl/research/kapteyn/sterrenwacht/gratama?lang=en) and dome of the [Blaauw Observatory](https://www.rug.nl/research/kapteyn/sterrenwacht/gratama?lang=en). However, by changing the properties in `config.ini` it could be adapted to any telescope on an equatorial mount.
+Compute the percentage obstruction of the aperture of a telescope aperture, on an equatorial mount, by a hemispherical dome using basic ray tracing techniques. Particularly designed for the [Gratama telescope](https://www.rug.nl/research/kapteyn/sterrenwacht/gratama?lang=en) and dome of the [Blaauw Observatory](https://www.rug.nl/research/kapteyn/sterrenwacht/). However, by changing the properties in `config.ini` it could be adapted to any telescope on an equatorial mount.
 
 ## Usage
 
