@@ -1,6 +1,7 @@
 import enum
 import configparser
 import numpy as np
+import matplotlib.pyplot as plt
 
 # For coordinate transformations
 from obstruction.transformations import vec3, vec4, transform, rot_x, rot_z
@@ -22,14 +23,16 @@ FINDER_ANGLE =  np.radians(config['finder'].getfloat('angle'))
 
 APERTURE_RADIUS = config['telescope'].getfloat('diameter')/2
 APERTURE_SEC_RADIUS = config['telescope'].getfloat('sec_diameter')/2
+
 GUIDER_RADIUS = config['guider'].getfloat('diameter')/2
 GUIDER_SEC_RADIUS = config['guider'].getfloat('sec_diameter')/2
+
 FINDER_RADIUS = config['finder'].getfloat('diameter')/2
 
 # Dome:
 RADIUS = config['dome'].getfloat('diameter')/2   # radius
 EXTENT = config['dome'].getfloat('extent')  # extent of cylindrical dome wall
-SLIT_WIDTH = config['dome'].getfloat('slit_width') # = MODEL / OLD: 1.84 (= measured)  # Slit width
+SLIT_WIDTH = config['dome'].getfloat('slit_width') # Slit width
 
 # Observatory:
 LAT = config['observatory'].getfloat('latitude') # degrees
@@ -47,25 +50,33 @@ class Instruments(enum.Enum):
     def get_default(c):
         return c.TELESCOPE
 
-def compute_azimuth(x, y):
-    """
-    Return the azimuth (rad) using
-    the north clockwise convension.
-    """
-    az = np.arctan2(x, y) # note (x,y) rather than (y,x)
-    
-    if az < 0:
-        az += 2*np.pi
-    
-    return az
+def plot_aperture(ap_x, ap_z, is_blocked, aperture_r, dome_az):
+    percentage = is_blocked[is_blocked].size/is_blocked.size
+
+    fig = plt.figure(figsize=(4.5, 4.5))
+    frame = fig.add_subplot(1, 1, 1)
+
+    frame.plot(ap_x[is_blocked], ap_z[is_blocked], ls='', marker='o', ms=3, color='xkcd:salmon', label='{:.1%} Blocked'.format(percentage))
+    frame.plot(ap_x[~is_blocked], ap_z[~is_blocked], ls='', marker='o', ms=3, color='black', label='{:.1%} Clear'.format(1-percentage))
+
+    frame.set_xlabel(r'$x$ (m)', fontsize=18)
+    frame.set_ylabel(r'$z$ (m)', fontsize=18)
+    frame.grid(ls='--', alpha=0.5)
+
+    frame.set_ylim(-2*aperture_r, 2*aperture_r)
+    frame.set_xlim(-2*aperture_r, 2*aperture_r)
+
+    frame.set_title('$A_d$ = {:.2f} deg'.format(float(dome_az) % 360), fontsize=18)
+
+    frame.legend(fontsize=12, loc='lower right')
+    fig.tight_layout()
+
+    plt.show()
 
 def find_intersection(point, direction):
     """Find ray-capsule intersection."""
     has_intersection = False
     t = None
-    
-#     if direction.z < 0:
-#         return has_intersection, t
     
     if np.isclose(direction[0], 0) and np.isclose(direction[1], 0):
         z = EXTENT + np.sqrt(RADIUS**2 - point[0]**2 - point[1]**2)
@@ -74,8 +85,7 @@ def find_intersection(point, direction):
         has_intersection = True
         return has_intersection, t
     
-    # If the direction vector is not (nearly) parallel to 
-    # the z-axis of the capsule
+    # If the direction vector is not (nearly) parallel to the z-axis of the capsule
     a2 = direction[0]**2 + direction[1]**2
     a1 = point[0]*direction[0] + point[1]*direction[1]
     a0 = point[0]**2 + point[1]**2 - RADIUS**2
@@ -102,8 +112,9 @@ def get_ray_intersection(point, direction, t):
     return point + t*direction
 
 class Aperture:
-    def __init__(self, radius, rate=100):
-        self.radius = radius
+    def __init__(self, radius, sec_radius=0, rate=100):
+        self.radius = radius 
+        self.sec_radius = sec_radius
         self.sample_rate = rate
 
         self._name = None
@@ -119,30 +130,14 @@ class Aperture:
         H = H_01 @ H_12 @ H_23
 
         return H
-    
-    def _uniform_disk(self, r_min=0):
-        """
-        Sample points on a disk, uniformly.
-        """
-        radii  = np.random.uniform(0, 1, self.sample_rate)
-        angles = np.random.uniform(0, 2*np.pi, self.sample_rate)
-        
-        x = np.sqrt(radii) * np.cos(angles)
-        y = np.sqrt(radii) * np.sin(angles)
-        
-        xy = self.radius*np.column_stack([x, y])
-        
-        if r_min > 0:
-            cond = x**2 + y**2 > r_min
-            xy = xy[cond]
 
-        return xy
-
-    def _equidistant_disk(self, r_min=0):
-        """Equidistant disk sampling based on:
-            http://www.holoborodko.com/pavel/2015/07/23/generating-equidistant-points-on-unit-disk/
+    def _sample_disk(self, r_min=0):
         """
-    
+        Equidistant disk sampling based on:
+        http://www.holoborodko.com/pavel/2015/07/23/generating-equidistant-points-on-unit-disk/
+
+        r_min is the ratio of the circle that is blocked.
+        """
         if not 0 <= r_min < 1:
             raise ValueError('r_min should be between 0 and 1...')
         
@@ -175,8 +170,6 @@ class Aperture:
             k += 1
         
         xy = self.radius*np.column_stack([x,y])
-        
-        # print('Generated {} points on a circle'.format(x.size))
         
         return xy
     
@@ -219,66 +212,33 @@ class Aperture:
             if has_intersection:
                 points = get_ray_intersection(point, direction, t)
                 
-                ray_az = np.degrees(compute_azimuth(points[0], points[1]))
+                rot = rot_z(dome_az)
 
-                if ray_az > dome_az + 180:
-                    ray_az -= dome_az + 360
-                elif ray_az > dome_az or ray_az < dome_az:
-                    ray_az -= dome_az
+                dummy = np.ones(points[0].size)
+                pp = np.column_stack((points[0], points[1], points[2], dummy))
 
-                # Compute the dome slit - dome hemisphere intersection
-                elev = np.arctan2(points[2] - EXTENT, np.sqrt(points[0]**2 + points[1]**2))
+                product = pt.transform(rot, pp)
                 
-                y_length_sq = np.power(RADIUS*np.cos(elev), 2) - np.power(SLIT_WIDTH/2, 2)
+                r = RADIUS * np.sin(np.radians(15))
 
-                if y_length_sq < 0:
-                    if points[2] > EXTENT:
-                        # If on the other hand its below EXTENT => aperture's blocked
-                        is_blocked = False
-                    
-                    return is_blocked
+                x_cond = -SLIT_WIDTH/2 < product[:, 0] < SLIT_WIDTH/2
+                y_cond = -r < product[:, 1] < RADIUS
 
-                y_length = np.sqrt(y_length_sq)
-                x_length = SLIT_WIDTH/2
-                slit_offset_rad = np.pi/2 - np.arctan2(y_length, x_length)
-                
-                # Compute off-set and compare ray az w/ dome position
-                slit_offset = np.degrees(slit_offset_rad)
+                is_ray_in_slit = points[2] > EXTENT and x_cond and y_cond
 
-                slit_az_min = -slit_offset
-                slit_az_max = slit_offset
-
-                if has_print:
-                    print('ray az = {:.2f} & dome az = {:.2f}'.format(np.degrees(compute_azimuth(points[0], points[1])), dome_az))
-                    print('{:.2f} (min) < {:.2f} (ray) < {:.2f} (max)'.format(slit_az_min, ray_az, slit_az_max))
-                
-                is_ray_in_slit = ray_az > slit_az_min and ray_az < slit_az_max
-                
-                if points[2] > EXTENT and is_ray_in_slit:
+                if is_ray_in_slit:
                     is_blocked = False
-
-                if not is_ray_in_slit and (ray_az < -90 or ray_az > 90):
-                    rot = rot_z(dome_az)
-
-                    dummy = np.ones(points[0].size)
-                    pp = np.column_stack((points[0], points[1], points[2], dummy))
-
-                    product = pt.transform(rot, pp)
-                    
-                    if np.abs(product[:, 0]) < SLIT_WIDTH/2 and np.abs(product[:,1]) < SLIT_WIDTH/2:
-                        is_blocked = False
                 
         except Exception as ex:
             print('ERROR OCCURRED DURING _is_blocked CALC...!\nERROR MSG:', str(ex))
             
         return is_blocked
 
-    def obstruction(self, ha, dec, dome_az):
+    def obstruction(self, ha, dec, dome_az, plot_result=False):
         ratio = None
         
         # Sample points in a disk; resembling the aperture
-        ap_xz = self._equidistant_disk(self.radius)
-        # ap_xz = self._uniform_disk(self.radius)
+        ap_xz = self._sample_disk(r_min=self.sec_radius/self.radius)
         
         ap_x, ap_z = ap_xz.T
 
@@ -290,6 +250,9 @@ class Aperture:
     
         ratio = blocked[blocked].size/blocked.size
 
+        if plot_result:
+            plot_aperture(ap_x, ap_z, blocked, self.radius, dome_az)
+
         return ratio
     
     def get_name(self):
@@ -298,14 +261,14 @@ class Aperture:
 class TelescopeAperture(Aperture):
     def __init__(self, rate=100):
         # TODO: load & set telescope info
-        super().__init__(APERTURE_RADIUS, rate=rate)
+        super().__init__(APERTURE_RADIUS, sec_radius=APERTURE_SEC_RADIUS, rate=rate)
         
         self._name = 'telescope'
 
 class GuiderAperture(Aperture):
     def __init__(self, rate=100):
         # TODO: load & set telescope info
-        super().__init__(GUIDER_RADIUS, rate=rate)
+        super().__init__(GUIDER_RADIUS, sec_radius=GUIDER_SEC_RADIUS, rate=rate)
 
         self._name = 'guider'
 
