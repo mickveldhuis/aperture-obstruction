@@ -1,13 +1,11 @@
 import numpy as np
-from pytransform3d import rotations as pr
-from pytransform3d import transformations as pt
 
 def vec4(x, y, z):
     """
     Return a 4-element vector, appropriate 
     for coordinate transformations.
     """
-    return np.array([x, y, z, 1]) #np.array([x, y, z, 1]).reshape((4,1))
+    return np.array([x, y, z, 1])
 
 def vec3(v4):
     """
@@ -63,10 +61,7 @@ def rot_z(angle):
 
     return np.array([
         [np.cos(angle),  -np.sin(angle), 0, 0],
-        [np.sin(angle),  np.cos(angle), 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
+        [np.sin(angle),  np.cos(angle),  0, 0],
+        [0,                          0,  1, 0],
+        [0,                          0,  0, 1],
     ])
-
-if __name__ == '__main__':
-    pass

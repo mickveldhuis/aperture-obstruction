@@ -1,13 +1,11 @@
-import enum
-import configparser
+import enum, configparser
 import numpy as np
 import matplotlib.pyplot as plt
 
-# For coordinate transformations
 from obstruction.transformations import vec3, vec4, transform, rot_x, rot_z
 from pytransform3d import transformations as pt
 
-# CONSTANTS
+# Load the geometry parameters of the telescope/dome
 config = configparser.ConfigParser()
 config.read('resources/config.ini')
 
@@ -37,11 +35,9 @@ SLIT_WIDTH = config['dome'].getfloat('slit_width') # Slit width
 # Observatory:
 LAT = config['observatory'].getfloat('latitude') # degrees
 
+
 class Instruments(enum.Enum):
-    """
-    Enum for selecting what aperture
-    to use in the transformation.
-    """
+    """Enum of possible apertures."""
     TELESCOPE = enum.auto()
     GUIDER = enum.auto()
     FINDER = enum.auto()
@@ -50,10 +46,21 @@ class Instruments(enum.Enum):
     def get_default(c):
         return c.TELESCOPE
 
+
 def plot_aperture(ap_x, ap_z, is_blocked, aperture_r, dome_az):
+    """"Plot the aperture w/ obstructed sample points.
+    
+    Parameters
+    ----------
+
+    ap_x, ap_z: x, z coordinates of the sampled points
+    is_blocked: boolean array of len(ap_x) signifying whether a point is obstructed
+    aperture_r: radius of the aperture in meters
+    dome_az: position of the dome (azimuth angle in deg)
+    """
     percentage = is_blocked[is_blocked].size/is_blocked.size
 
-    fig = plt.figure(figsize=(4.5, 4.5))
+    fig = plt.figure(figsize=(4.5, 4.5), num='MOCCA - Visualisation')
     frame = fig.add_subplot(1, 1, 1)
 
     frame.plot(ap_x[is_blocked], ap_z[is_blocked], ls='', marker='o', ms=3, color='xkcd:salmon', label='{:.1%} Blocked'.format(percentage))
@@ -66,18 +73,33 @@ def plot_aperture(ap_x, ap_z, is_blocked, aperture_r, dome_az):
     frame.set_ylim(-2*aperture_r, 2*aperture_r)
     frame.set_xlim(-2*aperture_r, 2*aperture_r)
 
-    frame.set_title('$A_d$ = {:.2f} deg'.format(float(dome_az) % 360), fontsize=18)
+    frame.set_title('Dome azimuth = {:.1f} deg'.format(float(dome_az) % 360), fontsize=18)
 
     frame.legend(fontsize=12, loc='lower right')
     fig.tight_layout()
 
     plt.show()
 
+
 def find_intersection(point, direction):
-    """Find ray-capsule intersection."""
+    """Find ray-capsule (i.e. ray-dome) intersection.
+    
+    Parameters
+    -----------
+
+    point: ray origin (3-vector)
+    direction: ray unit direction vector
+
+    Returns
+    -------
+
+    has_intersection: boolean signifying whether there is an intersection
+    t               : distance between the ray origin and intersection
+    """
     has_intersection = False
     t = None
     
+    # In case the ray is ~parallel to the dome z-axis
     if np.isclose(direction[0], 0) and np.isclose(direction[1], 0):
         z = EXTENT + np.sqrt(RADIUS**2 - point[0]**2 - point[1]**2)
         t = z - point[2]
@@ -85,7 +107,7 @@ def find_intersection(point, direction):
         has_intersection = True
         return has_intersection, t
     
-    # If the direction vector is not (nearly) parallel to the z-axis of the capsule
+    # If the direction vector is not (nearly) parallel to the dome z-axis
     a2 = direction[0]**2 + direction[1]**2
     a1 = point[0]*direction[0] + point[1]*direction[1]
     a0 = point[0]**2 + point[1]**2 - RADIUS**2
@@ -104,6 +126,7 @@ def find_intersection(point, direction):
     
     return has_intersection, t
 
+
 def get_ray_intersection(point, direction, t):
     """
     Return the ray intersection, based on the origin 
@@ -111,8 +134,26 @@ def get_ray_intersection(point, direction, t):
     """
     return point + t*direction
 
+
 class Aperture:
-    def __init__(self, radius, sec_radius=0, rate=100):
+    """Class representing the telescope aperture.
+    
+    Public methods
+    --------------
+
+    obstruction (float): return the % obstruction of the aperture by the dome
+    get_name (str): return an aperture "name"/identifier
+    """
+    def __init__(self, radius, sec_radius=0, rate=3):
+        """"The Aperture class constructor.
+        
+        Parameters
+        ----------
+        
+        radius (float): aperture radius in meters
+        sec_radius (float): radius of secondary obstruction in meters
+        rate (int): aperture sample rate (in terms of no. radial circles around the center)
+        """
         self.radius = radius 
         self.sec_radius = sec_radius
         self.sample_rate = rate
@@ -120,9 +161,17 @@ class Aperture:
         self._name = None
 
         # Add a vectorized instance of the _is_ray_blocked function
-        self._is_blocked = np.vectorize(self._is_ray_blocked, signature='(d),(),(),(),()->()')
+        self._is_blocked = np.vectorize(self._is_ray_blocked, signature='(d),(),(),()->()')
 
     def _transform(self, ha, dec):
+        """"Get the transformation matrix to the aperture.
+        
+        Parameters
+        ----------
+
+        ha (float): hour angle in degrees
+        dec (float): declination in degrees
+        """
         H_01 = transform(0, 0, L_1)
         H_12 = rot_x(90-LAT) @ rot_z(-ha) @ transform(0, 0, L_2)
         H_23 = rot_x(dec) @ transform(-L_3, 0, 0)
@@ -136,7 +185,10 @@ class Aperture:
         Equidistant disk sampling based on:
         http://www.holoborodko.com/pavel/2015/07/23/generating-equidistant-points-on-unit-disk/
 
-        r_min is the ratio of the circle that is blocked.
+        Parameters
+        ----------
+
+        r_min (float): ratio of the circle that is obstructed at the center
         """
         if not 0 <= r_min < 1:
             raise ValueError('r_min should be between 0 and 1...')
@@ -177,6 +229,14 @@ class Aperture:
         """
         Compute the position of a vector in 
         the aperture's frame.
+
+        Parameters
+        ----------
+
+        ha (float): hour angle in degrees
+        dec (float): declination in degrees
+        x (float ndarray): x coordinate of a point in the aperture
+        z (float ndarray): z coordinate of a point in the aperture
         """
         y = np.zeros(x.size)
         dummy = np.ones(x.size)
@@ -189,6 +249,16 @@ class Aperture:
         return product[:, :3]
     
     def _aperture_direction(self, ha, dec):
+        """
+        Return the pointing direction of the aperture
+        in the frame of the dome.
+
+        Parameters
+        ----------
+
+        ha (float): hour angle in degrees
+        dec (float): declination in degrees
+        """
         H_ap = self._transform(ha, dec)
         H_unit = transform(0, 1, 0)
 
@@ -198,9 +268,17 @@ class Aperture:
         
         return vec3(direction)
 
-    def _is_ray_blocked(self, point, ha, dec, dome_az, has_print=False):
+    def _is_ray_blocked(self, point, ha, dec, dome_az):
         """
-        Return True when the given ray in the aperture is blocked.
+        Checks whether an individual ray is blocked.
+
+        Parameters
+        ----------
+
+        point (3-vector): ray origin
+        ha (float): hour angle in degrees
+        dec (float): declination in degrees
+        dome_az (float): dome azimuth (clockwise convention)
         """
         is_blocked = True
         
@@ -235,6 +313,17 @@ class Aperture:
         return is_blocked
 
     def obstruction(self, ha, dec, dome_az, plot_result=False):
+        """
+        Compute the % obstruction of the aperture by the dome.
+
+        Parameters
+        ----------
+
+        ha (float): hour angle in degrees
+        dec (float): declination in degrees
+        dome_az (float): dome azimuth (clockwise convention)
+        plot_result (bool): if True, a plot with the sampled aperture and obstructed points will be shown
+        """
         ratio = None
         
         # Sample points in a disk; resembling the aperture
@@ -246,7 +335,7 @@ class Aperture:
         ap_pos = self._sample_aperture(ha, dec, -ap_x, ap_z)
 
         # Compute the no. rays, emanating from those points, blocked by the dome
-        blocked = self._is_blocked(ap_pos, ha, dec, dome_az, has_print=False)
+        blocked = self._is_blocked(ap_pos, ha, dec, dome_az)
     
         ratio = blocked[blocked].size/blocked.size
 
@@ -256,18 +345,21 @@ class Aperture:
         return ratio
     
     def get_name(self):
+        """Return aperture identifier."""
         return self._name
 
+
 class TelescopeAperture(Aperture):
-    def __init__(self, rate=100):
-        # TODO: load & set telescope info
+    """Primary aperture."""
+    def __init__(self, rate=4):
         super().__init__(APERTURE_RADIUS, sec_radius=APERTURE_SEC_RADIUS, rate=rate)
         
         self._name = 'telescope'
 
+
 class GuiderAperture(Aperture):
-    def __init__(self, rate=100):
-        # TODO: load & set telescope info
+    """Autoguider aperture."""
+    def __init__(self, rate=3):
         super().__init__(GUIDER_RADIUS, sec_radius=GUIDER_SEC_RADIUS, rate=rate)
 
         self._name = 'guider'
@@ -283,9 +375,10 @@ class GuiderAperture(Aperture):
 
         return H
 
+
 class FinderAperture(Aperture):
-    def __init__(self, rate=100):
-        # TODO: load & set telescope info
+    """Finderscope aperture."""
+    def __init__(self, rate=3):
         super().__init__(FINDER_RADIUS, rate=rate)
 
         self._name = 'finder'

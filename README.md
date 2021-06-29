@@ -1,4 +1,4 @@
-# Dome Interference Calculator
+# Aperture Obstruction Calculator (MOCCA)
 
 ## About
 
@@ -6,4 +6,4 @@ Compute the percentage obstruction of the aperture of a telescope aperture, on a
 
 ## Usage
 
-With the script `blockage.py`, one can determine the percentage obstruction of the telescope aperture by the dome. Add the `-h` argument to display additional options, such as what aperture (in the case of the Gratama telescope: telescope/guider/finder) and more.
+With the script `mocca.py` (which stands for **M**ick's **O**bstruction **C**al**C**ulat**O**r), one can determine the percentage obstruction of the telescope aperture by the dome. Add the `-h` argument to display additional options, such as what aperture (in the case of the Gratama telescope: telescope/guider/finder) and more.
