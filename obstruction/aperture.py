@@ -290,7 +290,8 @@ class Aperture:
             if has_intersection:
                 points = get_ray_intersection(point, direction, t)
                 
-                rot = rot_z(dome_az)
+                az_corrected = (dome_az-180) % 360 # Correction assuming the azimuth is zero at the South
+                rot = rot_z(az_corrected)
 
                 dummy = np.ones(points[0].size)
                 pp = np.column_stack((points[0], points[1], points[2], dummy))
