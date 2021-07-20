@@ -6,4 +6,4 @@ MOCCA (which stands for **M**ick's aperture **O**bstruction **C**al**C**ul**A**t
 
 ## Usage
 
-With the script `mocca.py`, one can determine the percentage obstruction of the telescope aperture by the dome. Add the `-h` argument to display additional options, such as what aperture (in the case of the Gratama telescope: telescope/guider/finder) and more.
+With `mocca`, one can determine the percentage obstruction of the telescope aperture by the dome. Add the `-h` argument to display additional options, such as what aperture (in the case of the Gratama telescope: telescope/guider/finder) and more.

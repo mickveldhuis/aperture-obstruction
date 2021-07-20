@@ -1,4 +1,2 @@
-# Python
-__pycache__/
-venv/
-*.pyc
+eigen/
+.vscode/
