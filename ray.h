@@ -4,6 +4,8 @@
 #include <Eigen/Geometry>
 #include <cmath>
 
+#include "config.h"
+
 struct capsule_t {
     double radius;
     double extent;
@@ -20,7 +22,7 @@ class Ray {
         double delta = 1e-20;
 
     public:
-        Ray(Eigen::Vector3d origin, Eigen::Vector3d direction);
+        Ray(Eigen::Vector3d& origin, Eigen::Vector3d& direction);
         ~Ray();
 
         bool findIntersection();

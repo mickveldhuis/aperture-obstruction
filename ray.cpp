@@ -1,14 +1,12 @@
 #include "ray.h"
 
-Ray::Ray(Eigen::Vector3d origin, Eigen::Vector3d direction) {
+Ray::Ray(Eigen::Vector3d& origin, Eigen::Vector3d& direction) {
     this->origin = origin;
     this-> direction = direction;
-
-    const double domeDiameter = 6.25;
     
     capsule_t hemispericalDome;
-    hemispericalDome.radius = domeDiameter/2;
-    hemispericalDome.extent = 1.66;
+    hemispericalDome.radius = cfg::DOME_DIAMETER/2;
+    hemispericalDome.extent = cfg::DOME_EXTENT;
 
     this->dome = hemispericalDome;
 }
