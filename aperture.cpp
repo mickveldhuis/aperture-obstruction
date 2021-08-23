@@ -1,6 +1,6 @@
 #include "aperture.h"
         
-Aperture::Aperture(double radius, double secondaryRadius = 0.0, int sampleRate = 3) {
+Aperture::Aperture(double radius, double secondaryRadius, int sampleRate) {
     this->radius = radius;
     this->secRadius = secondaryRadius;
     this->sampleRate = sampleRate;
@@ -10,7 +10,7 @@ Aperture::~Aperture() {
     // TODO: remove/de-init stuff....
 }
 
-point_2d Aperture::sampleDisk(double minRadius = 0) {
+point_2d Aperture::sampleDisk(double minRadius) {
     double dr = 1/this->sampleRate;
 
     std::vector<double> x;
@@ -18,6 +18,41 @@ point_2d Aperture::sampleDisk(double minRadius = 0) {
 
     // TODO: add sampling logic; figure out HOW TO replicate MATLAB's 'linspace'
     // Potentially use: `Eigen::ArrayXf::LinSpaced` or the function `linspace` in helpers.h
+
+    std::vector<double> radii = helpers::linspace(minRadius, 1, this->sampleRate);
+    int k = ceil(minRadius*(this->sampleRate + 1));
+
+    if (minRadius == 0) {
+        x.push_back(0);
+        y.push_back(0);
+
+        // Overwrite the radii and k parameters
+        radii = helpers::linspace(dr, 1, this->sampleRate);
+        k = 1;
+    }
+
+    for (const auto& radius : radii) {
+        int n = round(M_PI/asin(1/(2*static_cast<double>(k))));
+
+        std::vector<double> theta = helpers::linspace(0, 2*M_PI, n + 1);
+
+        std::vector<double> x_r;
+        std::vector<double> y_r;
+
+        std::for_each(theta.begin(), theta.end(), [radius, &x_r, &y_r](double t) {
+            x_r.push_back(radius * cos(t));
+            y_r.push_back(radius * sin(t));
+        });
+        
+        // TODO: look @ possible overhead of `reserve`!?
+        x.reserve(x.size() + x_r.size());
+        x.insert(x.end(), x_r.begin(), x_r.end());
+        
+        y.reserve(y.size() + y_r.size());
+        y.insert(y.end(), y_r.begin(), y_r.end());
+
+        ++k;
+    }
 
     return std::make_pair(x, y);
 }
@@ -65,18 +100,17 @@ Eigen::Vector3d Aperture::apertureDirection(double hourAngle, double declination
 
     Eigen::MatrixXd pose = H.matrix() * unitH.matrix() - H.matrix();
     
-    
     Eigen::Vector3d origin = Eigen::Vector3d::Zero();
-    Eigen::Vector4d d = pose * origin;
+    Eigen::Vector4d d = pose * origin.homogeneous();
 
-    return d.hnormalized(); // homogeneous -> affine coordinates
+    return d.head<3>(); // homogeneous -> affine coordinates
 }
 
 bool Aperture::isRayBlocked(Eigen::Vector3d& origin, double hourAngle, double declination, double domeAzimuth) {
     bool isBlocked = true;
 
     // Get the ray's direction
-    Eigen::MatrixXd direction;
+    Eigen::Vector3d direction;
     direction = this->apertureDirection(hourAngle, declination);
     
     try {
@@ -91,14 +125,14 @@ bool Aperture::isRayBlocked(Eigen::Vector3d& origin, double hourAngle, double de
             Eigen::Transform <double, 3, Eigen::Affine> rot = Eigen::Transform <double, 3, Eigen::Affine>::Identity();
             rot.rotate(Eigen::AngleAxisd(helpers::radians(azCorrected), Eigen::Vector3d::UnitZ()));
 
-            Eigen::Vector4d originTransformed = rot.matrix() * origin.colwise().homogeneous();
+            Eigen::Vector4d originTransformed = rot.matrix() * point.colwise().homogeneous();
 
             double r = 0.5 * cfg::DOME_DIAMETER * sin(helpers::radians(15));
 
             bool xCondition = -cfg::DOME_SLIT_WIDTH/2 < originTransformed(0) && originTransformed(0) < cfg::DOME_SLIT_WIDTH/2;
             bool yCondition = -r < originTransformed(1) && originTransformed(1) < 0.5 * cfg::DOME_DIAMETER;
 
-            if (origin(2) > cfg::DOME_EXTENT && xCondition && yCondition) {
+            if (point(2) > cfg::DOME_EXTENT && xCondition && yCondition) {
                 isBlocked = false;
             }
         }
@@ -117,13 +151,15 @@ std::vector<bool> Aperture::isBlocked(Eigen::MatrixXd& origins, double hourAngle
     for (int i = 0; i < n; ++i) {
         Eigen::Vector3d origin = origins.col(i);
         bool b = this->isRayBlocked(origin, hourAngle, declination, domeAzimuth);
+
+        blocked.push_back(b);
     }
 
     return blocked;
 }
 
 double Aperture::obstruction(double hourAngle, double declination, double domeAzimuth) {
-    double ratio;
+    double ratio = 0;
 
     point_2d xz = this->sampleDisk(); // TODO: add min radius
     std::vector<double> x = std::get<0>(xz);
@@ -144,8 +180,8 @@ double Aperture::obstruction(double hourAngle, double declination, double domeAz
     // Compute blocked rays
     std::vector<bool> blocked = this->isBlocked(apPosition, hourAngle, declination, domeAzimuth);
 
-    // Compute the ratio
-    ratio = std::count(blocked.begin(), blocked.end(), true)/blocked.size();
+    // // Compute the ratio
+    // ratio = std::count(blocked.begin(), blocked.end(), true)/blocked.size();
 
     return ratio;
 }

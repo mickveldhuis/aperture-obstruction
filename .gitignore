@@ -1,2 +1,11 @@
-eigen/
+# General
 .vscode/
+
+# C++
+*.o
+
+# Libraries
+eigen/
+
+# MOCCA
+mocca

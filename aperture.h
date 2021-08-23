@@ -23,7 +23,7 @@ class Aperture {
         float secRadius;
         float sampleRate;
 
-        point_2d sampleDisk(double minRadius = 0.0);
+        point_2d sampleDisk(double minRadius = 0);
         
         Eigen::Transform<double, 3, Eigen::Affine> transform(double hourAngle, double declination);
         Eigen::MatrixXd sampleAperture(double hourAngle, double declination, std::vector<double> x, std::vector<double> z);
@@ -33,7 +33,7 @@ class Aperture {
         std::vector<bool> isBlocked(Eigen::MatrixXd& origins, double hourAngle, double declination, double domeAzimuth);
 
     public:
-        Aperture(double radius, double secondaryRadius = 0.0, int sampleRate = 3);
+        Aperture(double radius, double secondaryRadius = 0, int sampleRate = 3);
         ~Aperture();
 
         double obstruction(double hourAngle, double declination, double domeAzimuth);

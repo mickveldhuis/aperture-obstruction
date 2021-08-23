@@ -27,7 +27,6 @@ int main(int argc, char** argv) {
                 break;
             case 'r':
                 rate = atoi(optarg);
-                std::cout << rate << std::endl;
                 break;
             case '?':
                 std::cout << "unknown option..." << static_cast<char>(optopt) << std::endl;
@@ -38,10 +37,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    Aperture telescope(cfg::APERTURE_DIAMETER/2);
-    
-    double blockage = telescope.obstruction(hourAngle, declination, domeAzimuth);
+    Aperture telescope(cfg::APERTURE_DIAMETER/2, cfg::APERTURE_SEC_DIAMETER/2, rate);
 
+    double blockage = telescope.obstruction(hourAngle, declination, domeAzimuth);
     std::cout << "The obstruction is " << blockage << std::endl;
 
     return 0;
